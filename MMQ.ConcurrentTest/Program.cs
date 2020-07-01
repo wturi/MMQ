@@ -20,7 +20,6 @@ namespace MMQ.ConcurrentTest
 
             new Thread(() => { TestDequeue("Dequeue2"); }).Start();
 
-
             Thread.Sleep(20000);
 
             Console.WriteLine($"thread3 write");
