@@ -50,7 +50,7 @@ namespace MMQ.V1
 		{
 			var sw = new Stopwatch();
 			sw.Start();
-			for (int i = 0; i < int.MaxValue; ++i)
+			for (var i = 0; i < int.MaxValue; ++i)
 			{
 				if (sw.Elapsed >= timeout)
 					break;

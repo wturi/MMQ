@@ -2,149 +2,173 @@
 using System.Diagnostics.Contracts;
 using System.IO.MemoryMappedFiles;
 using System.Runtime.InteropServices;
+
 using MMQ.V1;
 
 namespace MMQ
 {
-	/// <summary>
-	///     Allows the creation of queues, producers and consumers,
-	///     <see cref="Create" />, <see cref="CreateProducer" /> and <see cref="CreateConsumer" />.
-	/// </summary>
-	public static class MemoryMappedQueue
-	{
-		/// <summary>
-		///     Creates a new queue that can be accessed by any process on the same machine.
-		///     Use <see cref="CreateProducer" /> and/or <see cref="CreateConsumer" /> in order to
-		///     use the queue.
-		/// </summary>
-		/// <param name="name">A machine-wide unique name</param>
-		/// <param name="bufferSize"></param>
-		/// <returns></returns>
-		/// <exception cref="ArgumentException">When a queue with the same <paramref name="name" /> already exists</exception>
-		/// <exception cref="ArgumentOutOfRangeException">When <paramref name="bufferSize" /> is too small </exception>
-		public static IMemoryMappedQueue Create(string name, int bufferSize = ushort.MaxValue)
-		{
-			MemoryMappedFile file = null;
-			try
-			{
-				file = MemoryMappedFile.CreateNew(name, bufferSize);
-				var header = new Header
-				{
-					Cookie1 = Header.MagicCookieValue,
-					Version = 1,
-					FileLength = bufferSize,
-					Cookie2 = Header.MagicCookieValue
-				};
+    /// <summary>
+    ///     Allows the creation of queues, producers and consumers,
+    ///     <see cref="Create" />, <see cref="CreateProducer" /> and <see cref="CreateConsumer" />.
+    /// </summary>
+    public static class MemoryMappedQueue
+    {
+        /// <summary>
+        ///     Creates a new queue that can be accessed by any process on the same machine.
+        ///     Use <see cref="CreateProducer" /> and/or <see cref="CreateConsumer" /> in order to
+        ///     use the queue.
+        /// </summary>
+        /// <param name="name">A machine-wide unique name</param>
+        /// <param name="bufferSize"></param>
+        /// <returns></returns>
+        /// <exception cref="ArgumentException">When a queue with the same <paramref name="name" /> already exists</exception>
+        /// <exception cref="ArgumentOutOfRangeException">When <paramref name="bufferSize" /> is too small </exception>
+        public static IMemoryMappedQueue Create(string name, int bufferSize = ushort.MaxValue)
+        {
+            MemoryMappedFile file = null;
+            try
+            {
+                file = MemoryMappedFile.CreateNew(name, bufferSize);
+                return CreateMemoryMappedQueue(name, file, bufferSize);
+            }
+            catch (Exception)
+            {
+                file?.Dispose();
+                throw;
+            }
+        }
 
-				using (var accessor = file.CreateViewAccessor())
-				{
-					unsafe
-					{
-						byte* start = null;
-						accessor.SafeMemoryMappedViewHandle.AcquirePointer(ref start);
-						for (var i = 0; i < bufferSize; ++i)
-							*(start + i) = 0;
-					}
+        /// <summary>
+        /// create or open
+        /// </summary>
+        /// <param name="name"></param>
+        /// <param name="bufferSize"></param>
+        /// <returns></returns>
+        public static IMemoryMappedQueue CreateOrOpen(string name, int bufferSize = ushort.MaxValue)
+        {
+            try
+            {
+                var file = MemoryMappedFile.CreateOrOpen(name, bufferSize);
+                return CreateMemoryMappedQueue(name, file, bufferSize);
+            }
+            catch (Exception)
+            {
+                throw;
+            }
+        }
 
-					accessor.Write(0, ref header);
-				}
-
-				return new V1.MemoryMappedQueue(name, file);
-			}
-			catch (Exception)
-			{
-				file?.Dispose();
-				throw;
-			}
-		}
-
-		/// <summary>
+        /// <summary>
 		///     Creates a new queue that can be accessed by any process on the same machine.
 		/// </summary>
 		/// <param name="name"></param>
 		/// <returns></returns>
 		public static IMemoryMappedQueueProducer CreateProducer(string name)
-		{
-			MemoryMappedFile file = null;
-			try
-			{
-				file = MemoryMappedFile.OpenExisting(name);
-				var factory = CreateFactory(name, file);
-				return factory.CreateProducer();
-			}
-			catch (Exception)
-			{
-				file?.Dispose();
-				throw;
-			}
-		}
+        {
+            MemoryMappedFile file = null;
+            try
+            {
+                file = MemoryMappedFile.OpenExisting(name);
+                var factory = CreateFactory(name, file);
+                return factory.CreateProducer();
+            }
+            catch (Exception)
+            {
+                file?.Dispose();
+                throw;
+            }
+        }
 
-		/// <summary>
-		///     Creates a new queue that can be accessed by any process on the same machine.
-		/// </summary>
-		/// <param name="name"></param>
-		/// <returns></returns>
-		public static IMemoryMappedQueueConsumer CreateConsumer(string name)
-		{
-			MemoryMappedFile file = null;
-			try
-			{
-				file = MemoryMappedFile.OpenExisting(name);
-				var factory = CreateFactory(name, file);
-				return factory.CreateConsumer();
-			}
-			catch (Exception)
-			{
-				file?.Dispose();
-				throw;
-			}
-		}
+        /// <summary>
+        ///     Creates a new queue that can be accessed by any process on the same machine.
+        /// </summary>
+        /// <param name="name"></param>
+        /// <returns></returns>
+        public static IMemoryMappedQueueConsumer CreateConsumer(string name)
+        {
+            MemoryMappedFile file = null;
+            try
+            {
+                file = MemoryMappedFile.OpenExisting(name);
+                var factory = CreateFactory(name, file);
+                return factory.CreateConsumer();
+            }
+            catch (Exception)
+            {
+                file?.Dispose();
+                throw;
+            }
+        }
 
-		private static IMemoryMappedQueueFactory CreateFactory(string name, MemoryMappedFile file)
-		{
-			var headerSize = Header.Size;
-			using (var accessor = file.CreateViewAccessor(0, headerSize))
-			{
-				Header header;
-				accessor.Read(0, out header);
+        private static IMemoryMappedQueue CreateMemoryMappedQueue(string name, MemoryMappedFile file, int bufferSize)
+        {
+            var header = new Header
+            {
+                Cookie1 = Header.MagicCookieValue,
+                Version = 1,
+                FileLength = bufferSize,
+                Cookie2 = Header.MagicCookieValue
+            };
 
-				if (!header.Verify())
-					throw new InvalidOperationException(string.Format(
-						"The given name '{0}' does not point to a valid memory mapped queue. This may be because the name is wrong, the queue's memory has been overwritten by another application or due to a bug in this library.",
-						name));
+            using (var accessor = file.CreateViewAccessor())
+            {
+                unsafe
+                {
+                    byte* start = null;
+                    accessor.SafeMemoryMappedViewHandle.AcquirePointer(ref start);
+                    for (var i = 0; i < bufferSize; ++i)
+                        *(start + i) = 0;
+                }
 
-				var dataSize = header.FileLength - headerSize;
-				switch (header.Version)
-				{
-					case 1: return new MemoryMappedQueueFactory(name, file, headerSize, dataSize);
-					default:
-						throw new NotSupportedException(string.Format("MMQ of version '{0}' is not supported!", header.Version));
-				}
-			}
-		}
+                accessor.Write(0, ref header);
+            }
 
-		[StructLayout(LayoutKind.Sequential, Pack = 1)]
-		private struct Header
-		{
-			public const long MagicCookieValue = 0xDEADFEED;
-			public const int Size = 24;
+            return new V1.MemoryMappedQueue(name, file);
+        }
 
-			public long Cookie1;
-			public int FileLength;
-			public uint Version;
-			public long Cookie2;
+        private static IMemoryMappedQueueFactory CreateFactory(string name, MemoryMappedFile file)
+        {
+            var headerSize = Header.Size;
+            using (var accessor = file.CreateViewAccessor(0, headerSize))
+            {
+                accessor.Read(0, out Header header);
 
-			[Pure]
-			public bool Verify()
-			{
-				if (Cookie1 != MagicCookieValue)
-					return false;
-				if (FileLength <= Size)
-					return false;
-				if (Cookie2 != MagicCookieValue)
-					return false;
-				return true;
-			}
-		}
-	}
+                if (!header.Verify())
+                    throw new InvalidOperationException(string.Format(
+                        "The given name '{0}' does not point to a valid memory mapped queue. This may be because the name is wrong, the queue's memory has been overwritten by another application or due to a bug in this library.",
+                        name));
+
+                var dataSize = header.FileLength - headerSize;
+                switch (header.Version)
+                {
+                    case 1: return new MemoryMappedQueueFactory(name, file, headerSize, dataSize);
+                    default:
+                        throw new NotSupportedException(string.Format("MMQ of version '{0}' is not supported!", header.Version));
+                }
+            }
+        }
+
+        [StructLayout(LayoutKind.Sequential, Pack = 1)]
+        private struct Header
+        {
+            public const long MagicCookieValue = 0xDEADFEED;
+            public const int Size = 24;
+
+            public long Cookie1;
+            public int FileLength;
+            public uint Version;
+            public long Cookie2;
+
+            [Pure]
+            public bool Verify()
+            {
+                if (Cookie1 != MagicCookieValue)
+                    return false;
+                if (FileLength <= Size)
+                    return false;
+                if (Cookie2 != MagicCookieValue)
+                    return false;
+                return true;
+            }
+        }
+    }
 }

@@ -53,7 +53,7 @@ namespace MMQ.V1
 				_accessor = accessor;
 				_length = (int)accessor.Capacity;
 				_dataLength = _length - DataOffset;
-				_mutex = new Mutex(false, string.Format("{0}.Mutex", queueName));
+				_mutex = new Mutex(false, $"{queueName}.Mutex");
 			}
 
 			public bool Acquire(int millisecondsTimeout)
@@ -63,15 +63,15 @@ namespace MMQ.V1
 
 			private int ReadPointer
 			{
-				get { return _accessor.ReadInt32(ReadPointerOffset); }
-				set { _accessor.Write(ReadPointerOffset, value); }
-			}
+				get => _accessor.ReadInt32(ReadPointerOffset);
+                set => _accessor.Write(ReadPointerOffset, value);
+            }
 
 			private int WritePointer
 			{
-				get { return _accessor.ReadInt32(WritePointerOffset); }
-				set { _accessor.Write(WritePointerOffset, value); }
-			}
+				get => _accessor.ReadInt32(WritePointerOffset);
+                set => _accessor.Write(WritePointerOffset, value);
+            }
 
 			public int AvailableWriteLength
 			{
@@ -112,10 +112,10 @@ namespace MMQ.V1
 			public byte[] ReadMessage()
 			{
 				var r = ReadPointer;
-				var cookie1 = Read(ref r);
+				Read(ref r);
 				var length = Read(ref r);
 				var data = ReadArray(ref r, length);
-				var cookie2 = Read(ref r, align: true);
+				Read(ref r, align: true);
 				ReadPointer = r;
 
 				return data;
@@ -126,13 +126,11 @@ namespace MMQ.V1
 				var value = _accessor.ReadInt32(DataOffset + readPointer);
 				readPointer = (readPointer + 4) % _dataLength;
 
-				if (align)
-				{
-					var offset = 4 - readPointer % 4;
-					readPointer += offset;
-				}
+                if (!align) return value;
+                var offset = 4 - readPointer % 4;
+                readPointer += offset;
 
-				return value;
+                return value;
 			}
 
 			private byte[] ReadArray(ref int readPointer, int length)
@@ -174,12 +172,10 @@ namespace MMQ.V1
 				_accessor.Write(DataOffset + writePointer, value);
 				writePointer = (writePointer + 4) % _dataLength;
 
-				if (align)
-				{
-					var offset = 4 - writePointer % 4;
-					writePointer += offset;
-				}
-			}
+                if (!align) return;
+                var offset = 4 - writePointer % 4;
+                writePointer += offset;
+            }
 
 			private void Write(ref int writePointer, byte[] data)
 			{
@@ -193,7 +189,7 @@ namespace MMQ.V1
 				else
 				{
 					_accessor.WriteArray(DataOffset + writePointer, data, 0, data.Length);
-					writePointer = writePointer + data.Length;
+					writePointer += data.Length;
 				}
 			}
 
