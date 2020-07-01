@@ -58,12 +58,10 @@ namespace MMQ.ConcurrentTest
             {
                 while (true)
                 {
-                    if (consumer.TryDequeue(out var message))
-                    {
-                        var text = Encoding.UTF8.GetString(message);
-                        Console.WriteLine($"\t\t\t\t\t\t {threadNum} read message from memory : {text}");
-                        Thread.Sleep(50);
-                    }
+                    if (!consumer.TryDequeue(out var message)) continue;
+                    var text = Encoding.UTF8.GetString(message);
+                    Console.WriteLine($"\t\t\t\t\t\t {threadNum} read message from memory : {text}");
+                    Thread.Sleep(50);
                 }
             }
         }
