@@ -42,11 +42,16 @@ namespace MMQ.ConcurrentTest
             }
         }
 
+        private readonly DateTime _startTime;
+
+        private double _useTime = 0;
+
         /// <summary>
         /// 私有构造方法(防止被外部实例化)
         /// </summary>
         private Singleton()
         {
+            _startTime = DateTime.Now;
             new Thread(Run).Start();
         }
 
@@ -64,6 +69,8 @@ namespace MMQ.ConcurrentTest
             var message = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(messageStructure));
 
             producer.Enqueue(message);
+
+            Console.WriteLine($"SendMessage : {JsonConvert.SerializeObject(messageStructure)}");
         }
 
         private void Run()
@@ -86,13 +93,9 @@ namespace MMQ.ConcurrentTest
         {
             Task.Factory.StartNew(() =>
             {
-                if (_uId == 1000)
-                {
-                    //模拟超时
-                    Thread.Sleep(7000);
-                }
-
-                messageStructure.ResultMessage = $"ResultData -> {_uId}";
+                Thread.Sleep(50);
+                _useTime = (DateTime.Now - _startTime).TotalMilliseconds;
+                messageStructure.ResultMessage = $"ResultData -> uId : {_uId} , useTime : {_useTime}";
                 messageStructure.IsTimeout = false;
             }).Wait(messageStructure.TimeoutMillisecond);
 
@@ -102,6 +105,8 @@ namespace MMQ.ConcurrentTest
             var message = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(messageStructure));
 
             producer.Enqueue(message);
+
+
         }
     }
 }

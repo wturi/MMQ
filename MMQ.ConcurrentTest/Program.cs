@@ -1,8 +1,8 @@
-﻿using System;
+﻿using Newtonsoft.Json;
+
+using System;
 using System.Text;
 using System.Threading;
-
-using Newtonsoft.Json;
 
 using Console = System.Console;
 
@@ -14,7 +14,6 @@ namespace MMQ.ConcurrentTest
         {
             Console.WriteLine($"Memory Queue Test Start");
             //SingletonRun();
-
 
             new Thread(() =>
             {
@@ -34,8 +33,6 @@ namespace MMQ.ConcurrentTest
                 new Thread(() => { TestEnqueue("Enqueue8", 10000); }).Start();
             }).Start();
 
-           
-
             Console.ReadLine();
         }
 
@@ -44,7 +41,7 @@ namespace MMQ.ConcurrentTest
         //传入命令消息
         private static void TestEnqueue(string threadNum, int num)
         {
-            for (var i = 0; i < 30; i++)
+            for (var i = 0; i < 100; i++)
             {
                 var singDemo = Singleton.Instance;
 
@@ -63,18 +60,25 @@ namespace MMQ.ConcurrentTest
                 {
                     while (DateTime.Now - startTime < TimeSpan.FromMilliseconds(50000))
                     {
-                        using (var consumer = MemoryMappedQueue.CreateConsumer(sharedMemoryName))
+                        try
                         {
-                            if (!consumer.TryDequeue(out var resultMessage)) continue;
-                            var text = Encoding.UTF8.GetString(resultMessage);
-                            var messageObj = JsonConvert.DeserializeObject<MessageStructure>(text);
-                            if (messageObj.IsTimeout)
+                            using (var consumer = MemoryMappedQueue.CreateConsumer(sharedMemoryName))
                             {
-                                Console.WriteLine($"[{threadNum}] time out :{text} ");
+                                if (!consumer.TryDequeue(out var resultMessage)) continue;
+                                var text = Encoding.UTF8.GetString(resultMessage);
+                                var messageObj = JsonConvert.DeserializeObject<MessageStructure>(text);
+                                if (messageObj.IsTimeout)
+                                {
+                                    Console.WriteLine($"[{threadNum}] time out :{text} ");
+                                    break;
+                                }
+                                Console.WriteLine($"[{threadNum}] TestEnqueue : {text}");
                                 break;
                             }
-                            Console.WriteLine($"[{threadNum}] result message : {text}");
-                            break;
+                        }
+                        catch (Exception e)
+                        {
+                            continue;
                         }
                     }
                 }
