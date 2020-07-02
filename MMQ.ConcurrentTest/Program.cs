@@ -2,6 +2,10 @@
 using System.Text;
 using System.Threading;
 
+using Newtonsoft.Json;
+
+using Console = System.Console;
+
 namespace MMQ.ConcurrentTest
 {
     internal class Program
@@ -11,56 +15,68 @@ namespace MMQ.ConcurrentTest
             Console.WriteLine($"Memory Queue Test Start");
             //SingletonRun();
 
-            new Thread(() => { TestEnqueue("Enqueue1"); }).Start();
-            new Thread(() => { TestEnqueue("Enqueue2"); }).Start();
 
-            Thread.Sleep(100);
+            new Thread(() =>
+            {
+                new Thread(() => { TestEnqueue("Enqueue1", 1000); }).Start();
+                new Thread(() => { TestEnqueue("Enqueue2", 2000); }).Start();
+                new Thread(() => { TestEnqueue("Enqueue3", 3000); }).Start();
+                new Thread(() => { TestEnqueue("Enqueue4", 4000); }).Start();
+                new Thread(() => { TestEnqueue("Enqueue5", 5000); }).Start();
+            }).Start();
 
-            new Thread(() => { TestDequeue("Dequeue1"); }).Start();
+            new Thread(() =>
+            {
+                new Thread(() => { TestEnqueue("Enqueue6", 6000); }).Start();
+                new Thread(() => { TestEnqueue("Enqueue7", 7000); }).Start();
+                new Thread(() => { TestEnqueue("Enqueue8", 8000); }).Start();
+                new Thread(() => { TestEnqueue("Enqueue8", 9000); }).Start();
+                new Thread(() => { TestEnqueue("Enqueue8", 10000); }).Start();
+            }).Start();
 
-            new Thread(() => { TestDequeue("Dequeue2"); }).Start();
-
-            Thread.Sleep(20000);
-
-            Console.WriteLine($"thread3 write");
-
-            new Thread(() => { TestEnqueue("Enqueue3"); }).Start();
+           
 
             Console.ReadLine();
         }
 
         #region 测试
 
-        private static void TestEnqueue(string threadNum)
+        //传入命令消息
+        private static void TestEnqueue(string threadNum, int num)
         {
-            using (var queue = MemoryMappedQueue.CreateOrOpen("UniqueName", 1 * 1024 * 1024))
+            for (var i = 0; i < 30; i++)
             {
-                using (var producer = queue.CreateProducer())
+                var singDemo = Singleton.Instance;
+
+                var message = new MessageStructure()
                 {
-                    var num = 1;
-                    while (num < 200)
+                    ManagedThreadId = Thread.CurrentThread.ManagedThreadId,
+                    CommandMessage = $"{threadNum}--{num + i + 1}",
+                    TimeoutMillisecond = 5000
+                };
+
+                singDemo.SendMessage(message, out var sharedMemoryName);
+
+                var startTime = DateTime.Now;
+
+                using (var queue = MemoryMappedQueue.CreateOrOpen(sharedMemoryName))
+                {
+                    while (DateTime.Now - startTime < TimeSpan.FromMilliseconds(50000))
                     {
-                        var test = $"Hello,{threadNum}!{++num}";
-                        var message = Encoding.UTF8.GetBytes(test);
-                        producer.Enqueue(message);
-                        Console.WriteLine($"{threadNum} enqueue to memory : {test}");
-
-                        Thread.Sleep(100);
+                        using (var consumer = MemoryMappedQueue.CreateConsumer(sharedMemoryName))
+                        {
+                            if (!consumer.TryDequeue(out var resultMessage)) continue;
+                            var text = Encoding.UTF8.GetString(resultMessage);
+                            var messageObj = JsonConvert.DeserializeObject<MessageStructure>(text);
+                            if (messageObj.IsTimeout)
+                            {
+                                Console.WriteLine($"[{threadNum}] time out :{text} ");
+                                break;
+                            }
+                            Console.WriteLine($"[{threadNum}] result message : {text}");
+                            break;
+                        }
                     }
-                }
-            }
-        }
-
-        private static void TestDequeue(string threadNum)
-        {
-            using (var consumer = MemoryMappedQueue.CreateConsumer("UniqueName"))
-            {
-                while (true)
-                {
-                    if (!consumer.TryDequeue(out var message)) continue;
-                    var text = Encoding.UTF8.GetString(message);
-                    Console.WriteLine($"\t\t\t\t\t\t {threadNum} read message from memory : {text}");
-                    Thread.Sleep(50);
                 }
             }
         }
