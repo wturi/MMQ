@@ -58,7 +58,7 @@ namespace MMQ.ConcurrentTest
 
                 using (var queue = MemoryMappedQueue.CreateOrOpen(sharedMemoryName))
                 {
-                    while (DateTime.Now - startTime < TimeSpan.FromMilliseconds(50000))
+                    while (DateTime.Now - startTime < TimeSpan.FromMilliseconds(message.TimeoutMillisecond + 1000))
                     {
                         try
                         {
