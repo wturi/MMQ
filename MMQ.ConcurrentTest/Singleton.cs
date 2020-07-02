@@ -93,7 +93,8 @@ namespace MMQ.ConcurrentTest
         {
             Task.Factory.StartNew(() =>
             {
-                Thread.Sleep(50);
+                //模拟逻辑处理所用时间
+                Thread.Sleep(20);
                 _useTime = (DateTime.Now - _startTime).TotalMilliseconds;
                 messageStructure.ResultMessage = $"ResultData -> uId : {_uId} , useTime : {_useTime}";
                 messageStructure.IsTimeout = false;
