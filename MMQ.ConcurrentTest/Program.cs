@@ -76,7 +76,7 @@ namespace MMQ.ConcurrentTest
                                 break;
                             }
                         }
-                        catch (Exception e)
+                        catch (Exception)
                         {
                             continue;
                         }
